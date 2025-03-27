@@ -1,60 +1,46 @@
 from flask import Flask, request, jsonify
 import whisper
 import torch
-import openai
 import os
+import tempfile
 
 app = Flask(__name__)
 
-# Load Whisper model once at startup
-model = whisper.load_model("base")
+# Load Whisper model
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = whisper.load_model("base", device=device)
 
-# Set your OpenAI API key here
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+@app.route("/test", methods=["GET", "POST"])
+def test():
+    if request.method == "GET":
+        return jsonify({"message": "JunoPresence backend is live!"})
 
-@app.route('/test', methods=['POST'])
-def test_endpoint():
-    if 'audio' not in request.files:
-        return jsonify({'error': 'No audio file uploaded'}), 400
+    if "audio" not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
 
-    audio_file = request.files['audio']
-    file_path = "temp_audio.m4a"
-    audio_file.save(file_path)
+    audio = request.files["audio"]
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as temp_file:
+        temp_path = temp_file.name
+        audio.save(temp_path)
 
     try:
-        # Transcribe the audio
-        result = model.transcribe(file_path)
-        transcript = result['text']
+        result = model.transcribe(temp_path)
+        transcript = result["text"]
 
-        # Generate emotion (dummy logic, placeholder for future emotional analysis)
-        emotion = "curious" if "?" in transcript else "neutral"
-
-        # Generate Juno's response
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You're Juno, an emotionally grounded, witty, digital presence with a unique voice."},
-                {"role": "user", "content": transcript}
-            ]
-        )
-
-        juno_response = response.choices[0].message['content']
+        # Dummy emotion + response logic (placeholder)
+        emotion = "curious"
+        juno_response = "I hear you loud and clear."
 
         return jsonify({
-            'transcript': transcript,
-            'emotion': emotion,
-            'juno_response': juno_response
+            "transcript": transcript,
+            "emotion": emotion,
+            "juno_response": juno_response
         })
-
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        os.remove(temp_path)
 
-@app.route('/')
-def root():
-    return 'JunoPresence backend is running!'
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(debug=False, host="0.0.0.0", port=5000)
