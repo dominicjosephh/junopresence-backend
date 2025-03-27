@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify # forced redeploy after fixing API key
+from flask import Flask, request, jsonify
 import whisper
 import torch
 import os
@@ -18,6 +18,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 def test():
     if request.method == "GET":
         return jsonify({"message": "JunoPresence backend is live!"})
+    return jsonify({"message": "Method not allowed"}), 405
 
 # Emotion detection helper (basic keyword-based mockup)
 def detect_emotion(text):
@@ -56,6 +57,9 @@ def process_audio():
     )
 
     juno_response = response.choices[0].message["content"]
+
+    # Clean up the temporary file
+    os.remove(temp.name)
 
     return jsonify({
         "transcript": transcript,
