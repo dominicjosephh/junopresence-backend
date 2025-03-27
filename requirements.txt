@@ -1,5 +1,5 @@
-Flask
+flask
 openai
-whisper
+git+https://github.com/openai/whisper.git
 torch
-werkzeug==2.3.0
+ffmpeg-python
