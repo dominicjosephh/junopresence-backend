@@ -15,7 +15,7 @@ def test():
     return "Juno backend is live."
     
 # Load Whisper mode
-model = whisper.load_model("base")
+# model = whisper.load_model("base")
 
 # Set OpenAI API key from environment variable
 openai.api_key = os.getenv("OPENAI_KEY")
@@ -45,7 +45,7 @@ def process_audio():
     with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as temp:
         audio_file.save(temp.name)
         result = model.transcribe(temp.name)
-        transcript = result["text"]
+        transcript = "This is a test transcript for backend debugging."
 
     emotion = detect_emotion(transcript)
 
