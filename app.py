@@ -5,8 +5,15 @@ import os
 import tempfile
 import openai
 
+
+
+from flask import Flask, request, jsonify
 app = Flask(__name__)
 
+@app.route("/test", methods=["GET"])
+def test():
+    return "Juno backend is live."
+    
 # Load Whisper mode
 model = whisper.load_model("base")
 
