@@ -3,4 +3,9 @@ gunicorn
 openai
 torch
 ffmpeg-python
-git+https://github.com/openai/whisper.git
+git+flask
+gunicorn
+openai==0.28.1
+torch
+ffmpeg-python
+git+https://github.com/openai/whisper.githttps://github.com/openai/whisper.git
