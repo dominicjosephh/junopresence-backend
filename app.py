@@ -21,9 +21,7 @@ model = whisper.load_model("base")
 openai.api_key = os.getenv("OPENAI_KEY")
 
 # Health check route
-@app.route("/test", methods=["GET"])
-def test():
-    return jsonify({"message": "JunoPresence backend is live!"})
+
 
 # Basic emotion detector (mock logic)
 def detect_emotion(text):
