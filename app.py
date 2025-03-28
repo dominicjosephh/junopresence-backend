@@ -1,72 +1,77 @@
 from flask import Flask, request, jsonify
-import whisper
-import torch
-import os
-import tempfile
 import openai
+import whisper
+import os
+import uuid
 
-
-
-from flask import Flask, request, jsonify
 app = Flask(__name__)
+model = None  # Delay loading Whisper
+session_history = {}
 
-@app.route("/test", methods=["GET"])
-def test():
-    return "Juno backend is live."
-    
-# Load Whisper mode
-# model = whisper.load_model("base")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Set OpenAI API key from environment variable
-openai.api_key = os.getenv("OPENAI_KEY")
+@app.route('/')
+def home():
+    return "JunoPresence backend is live!"
 
-# Health check route
-
-
-# Basic emotion detector (mock logic)
-def detect_emotion(text):
-    if any(word in text.lower() for word in ["sad", "upset", "depressed"]):
-        return "sad"
-    elif any(word in text.lower() for word in ["happy", "excited", "joyful"]):
-        return "happy"
-    elif any(word in text.lower() for word in ["angry", "mad", "furious"]):
-        return "angry"
-    else:
-        return "neutral"
-
-# Audio processing route
-@app.route("/process_audio", methods=["POST"])
+@app.route('/process_audio', methods=['POST'])
 def process_audio():
-    if "audio" not in request.files:
-        return jsonify({"error": "No audio file provided"}), 400
+    try:
+        global model
+        if model is None:
+            model = whisper.load_model("base")
 
-    audio_file = request.files["audio"]
+        if 'file' not in request.files:
+            return jsonify({"error": "No audio file provided."}), 400
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as temp:
-        audio_file.save(temp.name)
-        result = model.transcribe(temp.name)
-        transcript = "This is a test transcript for backend debugging."
+        file = request.files['file']
+        filename = f"temp_{uuid.uuid4()}.wav"
+        file.save(filename)
 
-    emotion = detect_emotion(transcript)
+        result = model.transcribe(filename)
+        transcription = result["text"]
+        os.remove(filename)
 
-    # Generate Juno response with OpenAI
-    prompt = f"Transcript: {transcript}\nEmotion detected: {emotion}\nRespond as Juno:"
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": "You are Juno, a witty, emotionally aware assistant."},
-            {"role": "user", "content": prompt},
-        ]
-    )
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are Juno, a helpful assistant."},
+                {"role": "user", "content": transcription}
+            ]
+        )
 
-    juno_response = response.choices[0].message["content"]
+        reply = response.choices[0].message.content
+        return jsonify({"transcription": transcription, "response": reply})
 
-    return jsonify({
-        "transcript": transcript,
-        "emotion": emotion,
-        "juno_response": juno_response
-    })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-# THIS LINE MUST EXIST FOR RAILWAY TO START THE SERVER
-if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+@app.route('/chat', methods=['POST'])
+def chat():
+    try:
+        data = request.get_json()
+        session_id = data.get("session_id", str(uuid.uuid4()))
+        user_input = data.get("message")
+
+        if not user_input:
+            return jsonify({"error": "No message provided."}), 400
+
+        history = session_history.get(session_id, [])
+        history.append({"role": "user", "content": user_input})
+
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": "You are Juno, a helpful assistant."}] + history
+        )
+
+        reply = response.choices[0].message.content
+        history.append({"role": "assistant", "content": reply})
+        session_history[session_id] = history[-10:]
+
+        return jsonify({"session_id": session_id, "response": reply})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
