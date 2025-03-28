@@ -6,3 +6,4 @@ numpy
 pydub
 scipy
 git+https://github.com/openai/whisper.git
+gunicorn
