@@ -1,24 +1,21 @@
 FROM python:3.10-slim
 
-# System dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libsndfile1 \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
+# Set working directory
 WORKDIR /app
 
-# Copy and install Python dependencies
-COPY requirements.txt ./
+# Install Python dependencies
+COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy app code
+# Copy the app
 COPY . .
 
-# Expose port for Railway
+# Expose port
 EXPOSE 5000
 
-# Start the app
+# Run the app using Gunicorn
 CMD exec gunicorn --bind 0.0.0.0:5000 app:app
