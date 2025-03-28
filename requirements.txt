@@ -1,4 +1,4 @@
-flask
+flask # Updated to trigger clean install
 openai
 torch
 ffmpeg-python
