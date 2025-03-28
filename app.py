@@ -7,7 +7,7 @@ import openai
 
 app = Flask(__name__)
 
-# Load Whisper model
+# Load Whisper mode
 model = whisper.load_model("base")
 
 # Set OpenAI API key from environment variable
