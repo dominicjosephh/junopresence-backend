@@ -21,4 +21,4 @@ COPY . .
 EXPOSE 5000
 
 # Start the app
-CMD ["python", "app.py"]
+CMD exec gunicorn --bind 0.0.0.0:5000 app:app
