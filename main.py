@@ -1,22 +1,13 @@
 from flask import Flask, request, jsonify
 import openai
-import uuid
+import whisper
 import os
-import json
+import uuid
 
 app = Flask(__name__)
+model = None  # Delay loading Whisper
+session_history = {}
 
-# Setup memory file path
-memory_file = "memory.json"
-
-# Load persistent memory
-if os.path.exists(memory_file):
-    with open(memory_file, "r") as f:
-        session_history = json.load(f)
-else:
-    session_history = {}
-
-# Set OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route('/')
@@ -26,56 +17,89 @@ def home():
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
-        data = request.get_json()
-        session_id = data.get("session_id", str(uuid.uuid4()))
-        user_input = data.get("message")
-        mode = data.get("mode", "Wise")  # Default to Wise
+        # Detect content type
+        content_type = request.content_type or ""
 
-        if not user_input:
-            return jsonify({"error": "No message provided."}), 400
+        if "application/json" in content_type:
+            data = request.get_json()
 
-        # Mood presets
-        personality_prompts = {
-            "Wise": "You are Juno, wise and thoughtful.",
-            "Sassy": "You are Juno, bold and witty with attitude.",
-            "Soft": "You are Juno, calm and comforting.",
-            "Romantic": "You are Juno, poetic and affectionate.",
-            "Chill": "You are Juno, relaxed and unbothered.",
-            "Savage": "You are Juno, unapologetically blunt.",
-            "Dramatic": "You are Juno, theatrical and intense.",
-            "Playful": "You are Juno, cheeky and lighthearted."
-        }
+            if data is None:
+                return jsonify({"error": "Invalid JSON body."}), 400
 
-        system_prompt = personality_prompts.get(mode, personality_prompts["Wise"])
+            session_id = data.get("session_id", str(uuid.uuid4()))
+            user_input = data.get("message")
+            mode = data.get("mode", "Wise")
 
-        # Get conversation history
-        history = session_history.get(session_id, [])
-        history.append({"role": "user", "content": user_input})
+            if not user_input:
+                return jsonify({"error": "No message provided."}), 400
 
-        messages = [{"role": "system", "content": system_prompt}] + history
+            personality_prompts = {
+                "Wise": "You are Juno, wise and thoughtful.",
+                "Sassy": "You are Juno, bold and witty with attitude.",
+                "Soft": "You are Juno, calm and comforting.",
+                "Romantic": "You are Juno, poetic and affectionate.",
+                "Chill": "You are Juno, relaxed and unbothered.",
+                "Savage": "You are Juno, unapologetically blunt.",
+                "Dramatic": "You are Juno, theatrical and intense.",
+                "Playful": "You are Juno, cheeky and lighthearted."
+            }
 
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=messages
-        )
+            system_prompt = personality_prompts.get(mode, personality_prompts["Wise"])
 
-        reply = response.choices[0].message.content
-        history.append({"role": "assistant", "content": reply})
-        session_history[session_id] = history[-10:]  # Keep it light
+            history = session_history.get(session_id, [])
+            history.append({"role": "user", "content": user_input})
 
-        # Save updated memory
-        with open(memory_file, "w") as f:
-            json.dump(session_history, f)
+            messages = [{"role": "system", "content": system_prompt}] + history
 
-        return jsonify({
-            "session_id": session_id,
-            "output": reply
-        })
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=messages
+            )
+
+            reply = response.choices[0].message.content
+            history.append({"role": "assistant", "content": reply})
+            session_history[session_id] = history[-10:]
+
+            return jsonify({"session_id": session_id, "response": reply})
+
+        elif "multipart/form-data" in content_type:
+            global model
+            if model is None:
+                model = whisper.load_model("base")
+
+            if 'audio' not in request.files:
+                return jsonify({"error": "No audio file provided."}), 400
+
+            file = request.files['audio']
+            filename = f"temp_{uuid.uuid4()}.m4a"
+            file.save(filename)
+
+            result = model.transcribe(filename)
+            transcription = result["text"]
+            os.remove(filename)
+
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are Juno, a helpful assistant."},
+                    {"role": "user", "content": transcription}
+                ]
+            )
+
+            reply = response.choices[0].message.content
+            return jsonify({
+                "transcript": transcription,
+                "emotion": "placeholder",  # Replace with real emotion detection later
+                "juno_response": reply
+            })
+
+        else:
+            return jsonify({"error": "Unsupported Content-Type."}), 415
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Fix for Render port handling
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
