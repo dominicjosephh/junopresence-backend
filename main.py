@@ -56,14 +56,14 @@ def chat():
             history.append({"role": "assistant", "content": reply})
             session_history[session_id] = history[-10:]
 
-            return jsonify({"session_id": session_id, "response": reply})
+            # Key fix here:
+            return jsonify({"output": reply})
 
         elif "multipart/form-data" in content_type:
             if 'audio' not in request.files:
                 return jsonify({"error": "No audio file provided."}), 400
 
             file = request.files['audio']
-
             transcription = openai.Audio.transcribe("whisper-1", file)
 
             response = openai.ChatCompletion.create(
@@ -75,11 +75,9 @@ def chat():
             )
 
             reply = response.choices[0].message.content
-            return jsonify({
-                "transcript": transcription["text"],
-                "emotion": "placeholder",  # optional emotion logic
-                "juno_response": reply
-            })
+
+            # Unified response format
+            return jsonify({"output": reply})
 
         else:
             return jsonify({"error": "Unsupported Content-Type."}), 415
