@@ -1,11 +1,9 @@
 from flask import Flask, request, jsonify
 import openai
-import whisper
 import os
 import uuid
 
 app = Flask(__name__)
-model = None  # Delay loading Whisper
 session_history = {}
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -17,12 +15,10 @@ def home():
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
-        # Detect content type
         content_type = request.content_type or ""
 
         if "application/json" in content_type:
             data = request.get_json()
-
             if data is None:
                 return jsonify({"error": "Invalid JSON body."}), 400
 
@@ -63,33 +59,25 @@ def chat():
             return jsonify({"session_id": session_id, "response": reply})
 
         elif "multipart/form-data" in content_type:
-            global model
-            if model is None:
-                model = whisper.load_model("base")
-
             if 'audio' not in request.files:
                 return jsonify({"error": "No audio file provided."}), 400
 
             file = request.files['audio']
-            filename = f"temp_{uuid.uuid4()}.m4a"
-            file.save(filename)
 
-            result = model.transcribe(filename)
-            transcription = result["text"]
-            os.remove(filename)
+            transcription = openai.Audio.transcribe("whisper-1", file)
 
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are Juno, a helpful assistant."},
-                    {"role": "user", "content": transcription}
+                    {"role": "user", "content": transcription["text"]}
                 ]
             )
 
             reply = response.choices[0].message.content
             return jsonify({
-                "transcript": transcription,
-                "emotion": "placeholder",  # Replace with real emotion detection later
+                "transcript": transcription["text"],
+                "emotion": "placeholder",  # optional emotion logic
                 "juno_response": reply
             })
 
@@ -101,5 +89,4 @@ def chat():
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=5000)
