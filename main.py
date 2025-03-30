@@ -1,3 +1,18 @@
+from flask import Flask, request, jsonify
+import openai
+import uuid
+import os
+
+app = Flask(__name__)
+session_history = {}
+
+# Set your OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Make sure this is set in Render
+
+@app.route('/')
+def home():
+    return "JunoPresence backend is live!"
+
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
@@ -38,7 +53,13 @@ def chat():
         history.append({"role": "assistant", "content": reply})
         session_history[session_id] = history[-10:]  # Keep convo lightweight
 
-        return jsonify({"session_id": session_id, "response": reply})
+        return jsonify({
+            "session_id": session_id,
+            "output": reply  # Changed to 'output' so Shortcut reads it properly
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
