@@ -5,17 +5,18 @@ import os
 import uuid
 import requests
 
-# Setup
 app = Flask(__name__)
 model = None
 session_history = {}
 
-# Keys from environment
+# API keys from env variables
 openai.api_key = os.getenv("OPENAI_API_KEY")
 elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
 
-# Juno voice from ElevenLabs
+# Your custom Juno voice from ElevenLabs
 voice_id = "bZV4D3YurjhgEC2jJoal"
+
+BASE_URL = "https://junopresence-backend.onrender.com"
 
 @app.route('/')
 def home():
@@ -32,7 +33,6 @@ def chat():
         if not user_input:
             return jsonify({"error": "No message provided."}), 400
 
-        # Moods
         personality_prompts = {
             "Wise": "You are Juno, wise and thoughtful.",
             "Sassy": "You are Juno, bold and witty with attitude.",
@@ -45,20 +45,22 @@ def chat():
         }
 
         system_prompt = personality_prompts.get(mode, personality_prompts["Wise"])
+
         history = session_history.get(session_id, [])
         history.append({"role": "user", "content": user_input})
+
         messages = [{"role": "system", "content": system_prompt}] + history
 
-        # Generate reply
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
+
         reply = response.choices[0].message.content
         history.append({"role": "assistant", "content": reply})
         session_history[session_id] = history[-10:]
 
-        # ElevenLabs TTS
+        # Generate voice via ElevenLabs
         tts_response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             headers={
@@ -75,16 +77,14 @@ def chat():
             }
         )
 
-        audio_filename = f"{uuid.uuid4()}.mp3"
-        audio_path = os.path.join("audio", audio_filename)
-        os.makedirs("audio", exist_ok=True)
+        audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
             f.write(tts_response.content)
 
         return jsonify({
             "session_id": session_id,
             "response": reply,
-            "audio_url": f"/audio/{audio_filename}"
+            "audio_url": f"{BASE_URL}/audio/response.mp3"
         })
 
     except Exception as e:
@@ -92,7 +92,7 @@ def chat():
 
 @app.route('/audio/<filename>')
 def serve_audio(filename):
-    return send_from_directory("audio", filename)
+    return send_from_directory('.', filename)
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
@@ -119,6 +119,7 @@ def process_audio():
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": transcription}]
         )
+
         reply = response.choices[0].message.content
 
         tts_response = requests.post(
@@ -138,14 +139,14 @@ def process_audio():
         )
 
         mp3_filename = str(uuid.uuid4()) + ".mp3"
-        mp3_path = os.path.join("audio", mp3_filename)
+        mp3_path = os.path.join(".", mp3_filename)
         with open(mp3_path, "wb") as f:
             f.write(tts_response.content)
 
         return jsonify({
             "transcription": transcription,
             "response": reply,
-            "audio_url": f"/audio/{mp3_filename}"
+            "audio_url": f"{BASE_URL}/audio/{mp3_filename}"
         })
 
     except Exception as e:
