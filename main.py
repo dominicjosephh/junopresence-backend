@@ -95,5 +95,68 @@ def chat():
 def serve_audio(filename):
     return send_from_directory('.', filename)
 
+@app.route('/process_audio', methods=['POST'])
+def process_audio():
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided."}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected."}), 400
+
+        # Save the uploaded file
+        filename = str(uuid.uuid4()) + ".wav"
+        file_path = os.path.join(".", filename)
+        file.save(file_path)
+
+        # Process the audio using Whisper
+        if model is None:
+            global model
+            model = whisper.load_model("base")
+
+        result = model.transcribe(file_path)
+        transcription = result["text"]
+
+        # Generate response using OpenAI
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": transcription}]
+        )
+
+        reply = response.choices[0].message.content
+
+        # Generate voice via ElevenLabs
+        tts_response = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            headers={
+                "xi-api-key": elevenlabs_api_key,
+                "Content-Type": "application/json"
+            },
+            json={
+                "text": reply,
+                "model_id": "eleven_monolingual_v1",
+                "voice_settings": {
+                    "stability": 0.4,
+                    "similarity_boost": 0.8
+                }
+            }
+        )
+
+        # Save audio to file
+        mp3_filename = str(uuid.uuid4()) + ".mp3"
+        mp3_path = os.path.join(".", mp3_filename)
+        with open(mp3_path, "wb") as f:
+            f.write(tts_response.content)
+
+        return jsonify({
+            "transcription": transcription,
+            "response": reply,
+            "mp3Url": f"/audio/{mp3_filename}"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
