@@ -111,8 +111,8 @@ def process_audio():
         file.save(file_path)
 
         # Process the audio using Whisper
+        global model
         if model is None:
-            global model
             model = whisper.load_model("base")
 
         result = model.transcribe(file_path)
