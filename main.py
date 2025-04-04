@@ -104,6 +104,10 @@ def process_audio():
         if 'file' not in request.files:
             return jsonify({"error": "No file provided."}), 400
 
+@app.route('/ritual/wakeup')
+def play_wakeup_ritual():
+    return send_from_directory('voice_rituals', 'Time_to_wake_up_Juno.mp3')
+        
         file = request.files['file']
         if file.filename == '':
             return jsonify({"error": "No file selected."}), 400
