@@ -4,17 +4,17 @@ import whisper
 import os
 import uuid
 import requests
-import json  # Required for response_class workaround
+import json
 
 app = Flask(__name__)
 model = None
 session_history = {}
 
-# API keys from env variables
+# Environment variables for secure API keys
 openai.api_key = os.getenv("OPENAI_API_KEY")
 elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
 
-# Your custom Juno voice from ElevenLabs
+# Juno’s ElevenLabs voice ID and backend base URL
 voice_id = "bZV4D3YurjhgEC2jJoal"
 BASE_URL = "https://junopresence-backend.onrender.com"
 
@@ -46,15 +46,16 @@ def chat():
 
         system_prompt = personality_prompts.get(mode, personality_prompts["Wise"])
 
+        # Track session history
         history = session_history.get(session_id, [])
         history.append({"role": "user", "content": user_input})
         messages = [{"role": "system", "content": system_prompt}] + history
 
+        # Get ChatGPT response
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
-
         reply = response.choices[0].message.content
         history.append({"role": "assistant", "content": reply})
         session_history[session_id] = history[-10:]
@@ -76,11 +77,11 @@ def chat():
             }
         )
 
+        # Always overwrite audio file
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
             f.write(tts_response.content)
 
-        # --- FIX: use response_class to prevent escaped slashes ---
         return app.response_class(
             response=json.dumps({
                 "session_id": session_id,
@@ -102,7 +103,7 @@ def process_audio():
     try:
         if 'file' not in request.files:
             return jsonify({"error": "No file provided."}), 400
-        
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({"error": "No file selected."}), 400
