@@ -94,7 +94,8 @@ def chat():
 
 @app.route('/audio/<filename>')
 def serve_audio(filename):
-    return send_from_directory('.', filename)
+    return send_from_directory('voice_rituals', filename)
+
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
