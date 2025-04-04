@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 import openai
 import whisper
 import os
@@ -10,11 +10,11 @@ app = Flask(__name__)
 model = None
 session_history = {}
 
-# Environment variables for secure API keys
+# API keys from environment variables
 openai.api_key = os.getenv("OPENAI_API_KEY")
 elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
 
-# Juno’s ElevenLabs voice ID and backend base URL
+# ElevenLabs custom Juno voice
 voice_id = "bZV4D3YurjhgEC2jJoal"
 BASE_URL = "https://junopresence-backend.onrender.com"
 
@@ -46,16 +46,15 @@ def chat():
 
         system_prompt = personality_prompts.get(mode, personality_prompts["Wise"])
 
-        # Track session history
         history = session_history.get(session_id, [])
         history.append({"role": "user", "content": user_input})
         messages = [{"role": "system", "content": system_prompt}] + history
 
-        # Get ChatGPT response
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=messages
         )
+
         reply = response.choices[0].message.content
         history.append({"role": "assistant", "content": reply})
         session_history[session_id] = history[-10:]
@@ -77,7 +76,6 @@ def chat():
             }
         )
 
-        # Always overwrite audio file
         audio_path = "response.mp3"
         with open(audio_path, "wb") as f:
             f.write(tts_response.content)
@@ -96,7 +94,15 @@ def chat():
 
 @app.route('/audio/<filename>')
 def serve_audio(filename):
-    return send_from_directory('Time_to_wake_up_Juno.m4a', filename)
+    return send_from_directory('.', filename)
+
+@app.route('/ritual/wakeup')
+def play_wakeup_ritual():
+    try:
+        ritual_path = os.path.join("voice_rituals", "Time_to_wake_up_Juno.m4a")
+        return send_file(ritual_path, mimetype="audio/mp4")
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
@@ -104,10 +110,6 @@ def process_audio():
         if 'file' not in request.files:
             return jsonify({"error": "No file provided."}), 400
 
-@app.route('/ritual/wakeup')
-def play_wakeup_ritual():
-    return send_from_directory('voice_rituals', 'Time_to_wake_up_Juno.mp3')
-        
         file = request.files['file']
         if file.filename == '':
             return jsonify({"error": "No file selected."}), 400
