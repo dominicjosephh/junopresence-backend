@@ -22,7 +22,7 @@ elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
 
 # Juno settings
 voice_id = "bZV4D3YurjhgEC2jJoal"
-BASE_URL = "https://your-digital-ocean-domain.com"  # Replace with your actual domain
+BASE_URL = "https://junopresence-b48ft.ondigitalocean.app/junopresence-backend2"  # Replace with your actual domain
 
 @app.route('/')
 def home():
