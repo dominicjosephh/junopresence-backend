@@ -15,12 +15,12 @@ def echo():
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
     if 'file' not in request.files:
-        return jsonify({"error": "No file provided"}), 400
+        return jsonify({"error": "No file provided"}), 
 
     file = request.files['file']
-
+    
     if file.filename == '':
-        return jsonify({"error": "Empty filename"}), 400
+        return jsonify({"error": "Empty filename"}), 
 
     # Save the file temporarily
     save_path = os.path.join('/tmp', file.filename)
