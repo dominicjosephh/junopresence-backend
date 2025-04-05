@@ -6,6 +6,11 @@ app = Flask(__name__)
 @app.route('/test', methods=['GET'])
 def test():
     return "Juno is live and ready."
+    
+@app.route('/echo', methods=['POST'])
+def echo():
+    data = request.get_json()
+    return jsonify({"you_sent": data})
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
