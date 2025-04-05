@@ -1,20 +1,28 @@
 from flask import Flask, request, jsonify, send_from_directory
 import openai
-import whisper
 import os
 import uuid
 import requests
 import json
 
+# Optional: try importing whisper if it's available
+try:
+    import whisper
+    whisper_available = True
+except ImportError:
+    whisper_available = False
+
 app = Flask(__name__)
 model = None
 session_history = {}
 
+# API keys
 openai.api_key = os.getenv("OPENAI_API_KEY")
 elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
 
+# Juno settings
 voice_id = "bZV4D3YurjhgEC2jJoal"
-BASE_URL = "https://junopresence-backend.onrender.com"
+BASE_URL = "https://your-digital-ocean-domain.com"  # Replace with your actual domain
 
 @app.route('/')
 def home():
@@ -57,6 +65,7 @@ def chat():
         history.append({"role": "assistant", "content": reply})
         session_history[session_id] = history[-10:]
 
+        # ElevenLabs TTS
         tts_response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             headers={
@@ -93,30 +102,12 @@ def chat():
 def serve_audio(filename):
     return send_from_directory('.', filename)
 
-@app.route('/ritual', methods=['POST'])
-def ritual_response():
-    try:
-        data = request.get_json()
-        ritual_mode = data.get("ritual_mode", "base").lower()
-
-        file_map = {
-            "base": "Juno_Base_Mode.m4a",
-            "mirror": "Juno_Mirror_Mode.m4a",
-            "challenger": "Juno_Challenger_Mode.m4a"
-        }
-
-        audio_file = file_map.get(ritual_mode)
-        if not audio_file:
-            return jsonify({"error": "Invalid ritual_mode provided."}), 400
-
-        return send_from_directory('.', f"voice_rituals/{audio_file}")
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
     try:
+        if not whisper_available:
+            return jsonify({"error": "Whisper is not available in this environment."}), 500
+
         if 'file' not in request.files:
             return jsonify({"error": "No file provided."}), 400
 
@@ -142,6 +133,7 @@ def process_audio():
 
         reply = response.choices[0].message.content
 
+        # ElevenLabs TTS
         tts_response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             headers={
@@ -159,8 +151,7 @@ def process_audio():
         )
 
         mp3_filename = str(uuid.uuid4()) + ".mp3"
-        mp3_path = os.path.join(".", mp3_filename)
-        with open(mp3_path, "wb") as f:
+        with open(mp3_filename, "wb") as f:
             f.write(tts_response.content)
 
         return app.response_class(
