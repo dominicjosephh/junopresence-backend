@@ -43,6 +43,7 @@ def chat():
         }
 
         system_prompt = personality_prompts.get(mode, personality_prompts["Wise"])
+
         history = session_history.get(session_id, [])
         history.append({"role": "user", "content": user_input})
         messages = [{"role": "system", "content": system_prompt}] + history
@@ -92,12 +93,33 @@ def chat():
 def serve_audio(filename):
     return send_from_directory('.', filename)
 
+@app.route('/ritual', methods=['POST'])
+def ritual_response():
+    try:
+        data = request.get_json()
+        ritual_mode = data.get("ritual_mode", "base").lower()
+
+        file_map = {
+            "base": "Juno_Base_Mode.m4a",
+            "mirror": "Juno_Mirror_Mode.m4a",
+            "challenger": "Juno_Challenger_Mode.m4a"
+        }
+
+        audio_file = file_map.get(ritual_mode)
+        if not audio_file:
+            return jsonify({"error": "Invalid ritual_mode provided."}), 400
+
+        return send_from_directory('.', f"voice_rituals/{audio_file}")
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
     try:
         if 'file' not in request.files:
             return jsonify({"error": "No file provided."}), 400
-        
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({"error": "No file selected."}), 400
@@ -153,22 +175,5 @@ def process_audio():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# === Ritual Routes ===
-@app.route('/ritual/wakeup')
-def ritual_wakeup():
-    return send_from_directory('voice_rituals', 'Time_To_Wake_Up_Juno.m4a')
-
-@app.route('/ritual/anchor')
-def ritual_anchor():
-    return send_from_directory('voice_rituals', 'Juno_Anchor_Mode.m4a')
-
-@app.route('/ritual/mirror')
-def ritual_mirror():
-    return send_from_directory('voice_rituals', 'Juno_Mirror_Mode.m4a')
-
-@app.route('/ritual/challenger')
-def ritual_challenger():
-    return send_from_directory('voice_rituals', 'Juno_Challenger_Mode.m4a')
-    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
