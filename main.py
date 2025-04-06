@@ -22,7 +22,7 @@ def process_audio():
         file.save(temp.name)
         audio_path = temp.name
 
-    # Load Whisper Model
+    # Whisper Transcription
     try:
         model = whisper.load_model("base")
         result = model.transcribe(audio_path)
@@ -30,13 +30,13 @@ def process_audio():
     except Exception as e:
         return jsonify({"error": f"Transcription failed: {str(e)}"}), 500
 
-    # Send to OpenAI
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    # OpenAI Response
+    openai.api_key = "sk-your-openai-key-here"  # <---- Replace with your real OpenAI key
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are Juno, an emotionally intelligent, grounded, witty digital presence."},
+                {"role": "system", "content": "You are Juno, a witty, grounded, emotionally intelligent digital presence."},
                 {"role": "user", "content": transcript}
             ]
         )
@@ -44,13 +44,15 @@ def process_audio():
     except Exception as e:
         return jsonify({"error": f"OpenAI request failed: {str(e)}"}), 500
 
-    # Generate Voice via ElevenLabs
+    # ElevenLabs Voice Synthesis
     try:
-        voice_id = "your-voice-id-here"  # <- Replace with your ElevenLabs voice ID
+        voice_id = "EXAVITQu4vr4xnSDxMaL"
+        elevenlabs_key = "sk_ae499dc58ad506cc392f207aca2831587c48f430a8e9724e"
+
         elevenlabs_response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             headers={
-                "xi-api-key": os.getenv("ELEVENLABS_API_KEY"),
+                "xi-api-key": elevenlabs_key,
                 "Content-Type": "application/json"
             },
             json={
