@@ -1,3 +1,4 @@
+import logging
 from flask import Flask, request, jsonify, send_file
 import os
 import tempfile
@@ -6,10 +7,10 @@ import openai
 import requests
 
 app = Flask(__name__)
+app.config['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
+model = whisper.load_model("base")  # Load model once at startup
 
-@app.route('/test', methods=['GET'])
-def test():
-    return "Juno is live and voice-ready."
+logging.basicConfig(level=logging.INFO)
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
@@ -17,18 +18,22 @@ def process_audio():
         return jsonify({"error": "No file provided"}), 400
 
     file = request.files['file']
-    
+    if not file.filename.endswith('.wav'):
+        return jsonify({"error": "Invalid file type. Only .wav files are allowed."}), 400
+
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp:
         file.save(temp.name)
         audio_path = temp.name
-
-    # Whisper Transcription
     try:
-        model = whisper.load_model("base")
         result = model.transcribe(audio_path)
         transcript = result["text"]
     except Exception as e:
-        return jsonify({"error": f"Transcription failed: {str(e)}"}), 500
+        logging.error(f"Transcription failed: {str(e)}")
+        return jsonify({"error": "Transcription failed"}), 500
+    finally:
+        os.remove(audio_path)  # Clean up the temp file
+
+    # Continue with OpenAI and ElevenLabs call...
 
     # OpenAI Response
     openai.api_key = os.getenv("OPENAI_API_KEY")  # Secure load
