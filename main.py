@@ -31,7 +31,7 @@ def process_audio():
         return jsonify({"error": f"Transcription failed: {str(e)}"}), 500
 
     # OpenAI Response
-    openai.api_key = "sk-your-openai-key-here"  # <---- Replace with your real OpenAI key
+    openai.api_key = os.getenv("OPENAI_API_KEY")  # Secure load
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
