@@ -1,7 +1,7 @@
 flask
 openai==0.28.1
-torch
-ffmpeg-python
 requests
-gunicorn
+ffmpeg-python
+torch
 git+https://github.com/openai/whisper.git
+gunicorn
