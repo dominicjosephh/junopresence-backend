@@ -63,7 +63,7 @@ def process_audio():
 
     # ElevenLabs fallback TTS
     try:
-        voice_id = "YOUR-JUNO-VOICE-ID-HERE"
+        voice_id = "bZV4D3YurjhgEC2jJoal"
         elevenlabs_key = os.getenv("bZV4D3YurjhgEC2jJoal")
 
         elevenlabs_response = requests.post(
