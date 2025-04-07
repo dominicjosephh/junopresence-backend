@@ -1,18 +1,28 @@
-from dotenv import load_dotenv
-load_dotenv()
-import logging
-from flask import Flask, request, jsonify, send_file
 import os
 import tempfile
+import logging
 import whisper
 import openai
 import requests
+from flask import Flask, request, jsonify, send_file
+from dotenv import load_dotenv
 
-app = Flask(__name__)
-app.config['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
-model = whisper.load_model("base")  # Load model once at startup
+# Load env variables
+load_dotenv()
 
+# Set up logging
 logging.basicConfig(level=logging.INFO)
+
+# Flask app
+app = Flask(__name__)
+
+# Load Whisper model once at startup
+model = whisper.load_model("base")
+
+# Load API keys from .env
+openai.api_key = os.getenv("OPENAI_API_KEY")
+elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
+voice_id = "EXAVITQu4vr4xnSDxMaL"  # You can move this to .env if needed
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
@@ -26,19 +36,18 @@ def process_audio():
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp:
         file.save(temp.name)
         audio_path = temp.name
+
     try:
         result = model.transcribe(audio_path)
         transcript = result["text"]
+        logging.info(f"Transcribed text: {transcript}")
     except Exception as e:
         logging.error(f"Transcription failed: {str(e)}")
         return jsonify({"error": "Transcription failed"}), 500
     finally:
-        os.remove(audio_path)  # Clean up the temp file
+        os.remove(audio_path)
 
-    # Continue with OpenAI and ElevenLabs call...
-
-    # OpenAI Response
-    openai.api_key = os.getenv("OPENAI_API_KEY")  # Secure load
+    # Generate response from OpenAI
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -48,14 +57,13 @@ def process_audio():
             ]
         )
         reply = response['choices'][0]['message']['content']
+        logging.info(f"Generated reply: {reply}")
     except Exception as e:
+        logging.error(f"OpenAI request failed: {str(e)}")
         return jsonify({"error": f"OpenAI request failed: {str(e)}"}), 500
 
-    # ElevenLabs Voice Synthesis
+    # ElevenLabs voice synthesis
     try:
-        voice_id = "EXAVITQu4vr4xnSDxMaL"
-        elevenlabs_key = "sk_ae499dc58ad506cc392f207aca2831587c48f430a8e9724e"
-
         elevenlabs_response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             headers={
@@ -79,6 +87,7 @@ def process_audio():
         return send_file(audio_output_path, mimetype="audio/mpeg")
 
     except Exception as e:
+        logging.error(f"ElevenLabs TTS failed: {str(e)}")
         return jsonify({"error": f"ElevenLabs TTS failed: {str(e)}"}), 500
 
 if __name__ == '__main__':
