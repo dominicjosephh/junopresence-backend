@@ -58,7 +58,7 @@ def process_audio():
 
     # ElevenLabs TTS
     try:
-        voice_id = "EXAVITQu4vr4xnSDxMaL"
+        voice_id = "bZV4D3YurjhgEC2jJoal"
         elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
 
         eleven_response = requests.post(
