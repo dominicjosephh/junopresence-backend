@@ -1,22 +1,17 @@
-from flask import Flask, request, jsonify, send_file
 import os
 import tempfile
 import whisper
 import openai
 import requests
+from flask import Flask, request, jsonify, send_file
 from dotenv import load_dotenv
 import logging
 
-# Load .env variables
 load_dotenv()
-app = Flask(__name__)
-app.config['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
-
-# Load Whisper model once
-model = whisper.load_model("base")
-
-# Logging for debug
 logging.basicConfig(level=logging.INFO)
+
+app = Flask(__name__)
+model = whisper.load_model("base")
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
@@ -27,6 +22,10 @@ def process_audio():
     if not file.filename.endswith('.wav'):
         return jsonify({"error": "Invalid file type. Only .wav files are allowed."}), 400
 
+    # Check for optional ritual_mode
+    ritual_mode = request.form.get('ritual_mode', 'none').lower()
+
+    # Save audio file
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp:
         file.save(temp.name)
         audio_path = temp.name
@@ -34,16 +33,15 @@ def process_audio():
     try:
         result = model.transcribe(audio_path)
         transcript = result["text"]
-        logging.info(f"Transcribed text: {transcript}")
     except Exception as e:
         logging.error(f"Transcription failed: {str(e)}")
         return jsonify({"error": "Transcription failed"}), 500
     finally:
         os.remove(audio_path)
 
-    # OpenAI API
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    # Generate GPT-4 response
     try:
+        openai.api_key = os.getenv("OPENAI_API_KEY")
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
@@ -52,16 +50,23 @@ def process_audio():
             ]
         )
         reply = response['choices'][0]['message']['content']
-        logging.info(f"Generated reply: {reply}")
     except Exception as e:
         return jsonify({"error": f"OpenAI request failed: {str(e)}"}), 500
 
-    # ElevenLabs TTS
-    try:
-        voice_id = "bZV4D3YurjhgEC2jJoal"
-        elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
+    # Handle pre-recorded ritual response if selected
+    if ritual_mode == "anchor":
+        return send_file("Juno_Anchor_Mode.m4a", mimetype="audio/m4a")
+    elif ritual_mode == "mirror":
+        return send_file("Juno_Mirror_Mode.m4a", mimetype="audio/m4a")
+    elif ritual_mode == "challenger":
+        return send_file("Juno_Challenger_Mode.m4a", mimetype="audio/m4a")
 
-        eleven_response = requests.post(
+    # ElevenLabs fallback TTS
+    try:
+        voice_id = "YOUR-JUNO-VOICE-ID-HERE"
+        elevenlabs_key = os.getenv("bZV4D3YurjhgEC2jJoal")
+
+        elevenlabs_response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             headers={
                 "xi-api-key": elevenlabs_key,
@@ -79,20 +84,12 @@ def process_audio():
 
         audio_output_path = "/tmp/juno_reply.mp3"
         with open(audio_output_path, "wb") as f:
-            f.write(eleven_response.content)
+            f.write(elevenlabs_response.content)
 
         return send_file(audio_output_path, mimetype="audio/mpeg")
 
     except Exception as e:
         return jsonify({"error": f"ElevenLabs TTS failed: {str(e)}"}), 500
-
-# NEW: Route to play latest reply
-@app.route('/latest_reply', methods=['GET'])
-def latest_reply():
-    try:
-        return send_file("/tmp/juno_reply.mp3", mimetype="audio/mpeg")
-    except Exception as e:
-        return jsonify({"error": f"Could not fetch audio: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
