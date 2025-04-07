@@ -4,8 +4,7 @@ __pycache__/
 *.pyo
 
 # Environment variables
-.env
-.env.*
+
 
 # Flask session memory (optional)
 memory.json
