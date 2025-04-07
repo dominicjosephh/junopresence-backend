@@ -1,28 +1,22 @@
+from flask import Flask, request, jsonify, send_file
 import os
 import tempfile
-import logging
 import whisper
 import openai
 import requests
-from flask import Flask, request, jsonify, send_file
 from dotenv import load_dotenv
+import logging
 
-# Load env variables
+# Load .env variables
 load_dotenv()
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-
-# Flask app
 app = Flask(__name__)
+app.config['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
 
-# Load Whisper model once at startup
+# Load Whisper model once
 model = whisper.load_model("base")
 
-# Load API keys from .env
-openai.api_key = os.getenv("OPENAI_API_KEY")
-elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
-voice_id = "EXAVITQu4vr4xnSDxMaL"  # You can move this to .env if needed
+# Logging for debug
+logging.basicConfig(level=logging.INFO)
 
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
@@ -47,7 +41,8 @@ def process_audio():
     finally:
         os.remove(audio_path)
 
-    # Generate response from OpenAI
+    # OpenAI API
+    openai.api_key = os.getenv("OPENAI_API_KEY")
     try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -59,12 +54,14 @@ def process_audio():
         reply = response['choices'][0]['message']['content']
         logging.info(f"Generated reply: {reply}")
     except Exception as e:
-        logging.error(f"OpenAI request failed: {str(e)}")
         return jsonify({"error": f"OpenAI request failed: {str(e)}"}), 500
 
-    # ElevenLabs voice synthesis
+    # ElevenLabs TTS
     try:
-        elevenlabs_response = requests.post(
+        voice_id = "EXAVITQu4vr4xnSDxMaL"
+        elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
+
+        eleven_response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             headers={
                 "xi-api-key": elevenlabs_key,
@@ -82,13 +79,20 @@ def process_audio():
 
         audio_output_path = "/tmp/juno_reply.mp3"
         with open(audio_output_path, "wb") as f:
-            f.write(elevenlabs_response.content)
+            f.write(eleven_response.content)
 
         return send_file(audio_output_path, mimetype="audio/mpeg")
 
     except Exception as e:
-        logging.error(f"ElevenLabs TTS failed: {str(e)}")
         return jsonify({"error": f"ElevenLabs TTS failed: {str(e)}"}), 500
+
+# NEW: Route to play latest reply
+@app.route('/latest_reply', methods=['GET'])
+def latest_reply():
+    try:
+        return send_file("/tmp/juno_reply.mp3", mimetype="audio/mpeg")
+    except Exception as e:
+        return jsonify({"error": f"Could not fetch audio: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
