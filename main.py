@@ -7,12 +7,24 @@ from flask import Flask, request, jsonify, send_file
 from dotenv import load_dotenv
 import logging
 
+# Setup
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
-
 app = Flask(__name__)
 model = whisper.load_model("base")
 
+# Route to play any pre-recorded voice mode
+@app.route('/voice/<mode_name>', methods=['GET'])
+def play_voice_mode(mode_name):
+    filename = f"Juno_{mode_name.capitalize()}_Mode.m4a"
+    filepath = os.path.join("static", "Voice_Rituals", filename)
+
+    if not os.path.exists(filepath):
+        return jsonify({"error": "Voice mode not found"}), 404
+
+    return send_file(filepath, mimetype="audio/m4a")
+
+# Main route for processing audio + returning voice
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
     if 'file' not in request.files:
@@ -22,10 +34,10 @@ def process_audio():
     if not file.filename.endswith('.wav'):
         return jsonify({"error": "Invalid file type. Only .wav files are allowed."}), 400
 
-    # Check for optional ritual_mode
+    # Optional ritual_mode passed from frontend/shortcut
     ritual_mode = request.form.get('ritual_mode', 'none').lower()
 
-    # Save audio file
+    # Save audio file temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp:
         file.save(temp.name)
         audio_path = temp.name
@@ -39,7 +51,14 @@ def process_audio():
     finally:
         os.remove(audio_path)
 
-    # Generate GPT-4 response
+    # Play pre-recorded voice if ritual_mode is provided
+    if ritual_mode != "none":
+        filename = f"Juno_{ritual_mode.capitalize()}_Mode.m4a"
+        filepath = os.path.join("static", "Voice_Rituals", filename)
+        if os.path.exists(filepath):
+            return send_file(filepath, mimetype="audio/m4a")
+
+    # GPT-4 fallback response
     try:
         openai.api_key = os.getenv("OPENAI_API_KEY")
         response = openai.ChatCompletion.create(
@@ -53,17 +72,9 @@ def process_audio():
     except Exception as e:
         return jsonify({"error": f"OpenAI request failed: {str(e)}"}), 500
 
-    # Handle pre-recorded ritual response if selected
-    if ritual_mode == "anchor":
-        return send_file("Juno_Anchor_Mode.m4a", mimetype="audio/m4a")
-    elif ritual_mode == "mirror":
-        return send_file("Juno_Mirror_Mode.m4a", mimetype="audio/m4a")
-    elif ritual_mode == "challenger":
-        return send_file("Juno_Challenger_Mode.m4a", mimetype="audio/m4a")
-
-    # ElevenLabs fallback TTS
+    # ElevenLabs TTS fallback
     try:
-        voice_id = "bZV4D3YurjhgEC2jJoal"
+        voice_id = "bZV4D3YurjhgEC2jJoal"  # your ElevenLabs voice ID
         elevenlabs_key = os.getenv("ELEVENLABS_API_KEY")
 
         elevenlabs_response = requests.post(
@@ -91,5 +102,6 @@ def process_audio():
     except Exception as e:
         return jsonify({"error": f"ElevenLabs TTS failed: {str(e)}"}), 500
 
+# Start the app
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
