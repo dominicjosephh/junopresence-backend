@@ -1,0 +1,21 @@
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment variables
+.env   
+
+# Flask session memory (optional)
+memory.json
+
+# Editor & OS junk
+.DS_Store
+.vscode/
+.idea/
+
+# Virtual environment
+venv/
+
+# Build/output folders
+*.log

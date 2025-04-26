@@ -1,0 +1,7 @@
+flask
+openai==0.28.1
+requests
+ffmpeg-python
+torch
+git+https://github.com/openai/whisper.git
+gunicorn
