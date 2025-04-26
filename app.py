@@ -1,44 +1,51 @@
 from flask import Flask, request, jsonify
-import tempfile
+from flask_cors import CORS
 import os
+from werkzeug.utils import secure_filename
+from tasks import transcribe_audio
+from celery.result import AsyncResult
 
+# Initialize Flask app
 app = Flask(__name__)
+CORS(app)
 
-@app.route('/api/hello')
-def hello():
-    return jsonify({"message": "JunoPresence backend active 🔥"})
+# Ensure uploads folder exists
+UPLOAD_FOLDER = 'uploads'
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
-@app.route('/api/process_audio', methods=['POST'])
+# Route: Upload audio file → Background transcription task
+@app.route('/process_audio', methods=['POST'])
 def process_audio():
-    print("🔥 Route hit.")
-    print("📂 Request files:", request.files)
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
 
-    if 'audio' not in request.files:
-        print("❌ 'audio' not in request.files")
-        return jsonify({'error': 'No audio file provided'}), 400
+    file = request.files['file']
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
 
-    audio_file = request.files['audio']
-    print("🎧 Audio filename:", audio_file.filename)
+    task = transcribe_audio.delay(filepath)
 
-    # Save to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a") as temp_file:
-        audio_path = temp_file.name
-        audio_file.save(audio_path)
-        print(f"💾 Audio saved to: {audio_path}")
+    return jsonify({"task_id": task.id}), 202
 
-    # TODO: Run Whisper transcription and ElevenLabs here
-    # We'll just fake it for now to prevent crashes
-    dummy_transcript = "This is a test transcript."
-    dummy_audio_url = "https://djpresence.com/rituals/Juno_Mirror_ModeF.mp3"
+# Route: Check task status by task ID
+@app.route('/get_transcription/<task_id>', methods=['GET'])
+def get_transcription(task_id):
+    task_result = AsyncResult(task_id, app=transcribe_audio.app)
 
-    # Cleanup temp file
-    try:
-        os.remove(audio_path)
-        print(f"🧹 Temp file deleted: {audio_path}")
-    except Exception as e:
-        print(f"⚠️ Failed to delete temp file: {e}")
+    if task_result.state == 'PENDING':
+        return jsonify({"status": "Processing..."})
 
-    return jsonify({
-        'transcript': dummy_transcript,
-        'audio_url': dummy_audio_url
-    })
+    if task_result.state == 'SUCCESS':
+        return jsonify({"transcription": task_result.result})
+
+    return jsonify({"status": task_result.state}), 202
+
+# Default route
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({"message": "JunoPresence Whisper Async Backend is running!"})
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
