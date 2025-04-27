@@ -1,7 +1,7 @@
 from celery import Celery
 import whisper
 
-app = Celery('tasks', broker='redis://localhost:6379/0')
+app = Celery('tasks', broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
 
 @app.task
 def transcribe_audio(filepath):
