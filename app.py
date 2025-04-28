@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
@@ -9,18 +9,19 @@ from celery.result import AsyncResult
 app = Flask(__name__)
 CORS(app)
 
-# Ensure uploads folder exists
+# Ensure uploads and static folders exist
 UPLOAD_FOLDER = 'uploads'
+AUDIO_FOLDER = 'static/Voice_Rituals'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 # Route: Upload audio file → Background transcription task
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+    if 'audio' not in request.files:
+        return jsonify({"error": "No audio file uploaded"}), 400
 
-    file = request.files['file']
+    file = request.files['audio']
     filename = secure_filename(file.filename)
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     file.save(filepath)
@@ -38,9 +39,19 @@ def get_transcription(task_id):
         return jsonify({"status": "Processing..."})
 
     if task_result.state == 'SUCCESS':
-        return jsonify({"transcription": task_result.result})
+        # Default fallback to a simple ritual file if no dynamic one is assigned
+        audio_url = "https://djpresence.com/rituals/Juno_Mirror_ModeF.m4a"
+        return jsonify({
+            "transcription": task_result.result,
+            "audio_url": audio_url
+        })
 
     return jsonify({"status": task_result.state}), 202
+
+# Serve audio files statically if needed
+@app.route('/rituals/<filename>')
+def serve_audio(filename):
+    return send_from_directory(AUDIO_FOLDER, filename)
 
 # Default route
 @app.route('/', methods=['GET'])
