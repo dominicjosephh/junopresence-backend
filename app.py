@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
-from tasks import transcribe_audio
+from tasks import transcribe_audio, generate_audio_reply
 from celery.result import AsyncResult
 
 # Initialize Flask app
@@ -11,13 +11,13 @@ CORS(app)
 
 # Ensure folders exist
 UPLOAD_FOLDER = 'uploads'
-AUDIO_FOLDER = 'static/Voice_Rituals'
+AUDIO_FOLDER = '/srv/audio_replies'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 if not os.path.exists(AUDIO_FOLDER):
     os.makedirs(AUDIO_FOLDER)
 
-# Route: Upload audio file → Background transcription task
+# Upload audio → Background transcription
 @app.route('/api/process_audio', methods=['POST'])
 def process_audio():
     if 'audio' not in request.files:
@@ -32,7 +32,7 @@ def process_audio():
 
     return jsonify({"task_id": task.id}), 202
 
-# Route: Check task status by task ID and return transcript + audio URL
+# Check transcription → Trigger audio generation → Return audio_url
 @app.route('/api/get_transcription/<task_id>', methods=['GET'])
 def get_transcription(task_id):
     task_result = AsyncResult(task_id, app=transcribe_audio.app)
@@ -41,19 +41,20 @@ def get_transcription(task_id):
         return jsonify({"status": "Processing..."})
 
     if task_result.state == 'SUCCESS':
-        # Choose a default ritual voice file
-        audio_filename = "Juno_Base_Mode.m4a"  # You can later customize this dynamically
-        audio_url = f"https://djpresence.com/static/Voice_Rituals/{audio_filename}"
+        transcript = task_result.result
+
+        # Trigger ElevenLabs generation
+        audio_task = generate_audio_reply.delay(transcript)
 
         return jsonify({
-            "transcription": task_result.result,
-            "audio_url": audio_url
+            "transcription": transcript,
+            "audio_url": f"https://djpresence.com/audio/{audio_task.id}.mp3"
         })
 
     return jsonify({"status": task_result.state}), 202
 
-# Static file serving fallback (optional, for manual browser testing)
-@app.route('/static/Voice_Rituals/<path:filename>')
+# Serve generated audio replies
+@app.route('/audio/<path:filename>')
 def serve_audio(filename):
     return send_from_directory(AUDIO_FOLDER, filename)
 
@@ -64,4 +65,3 @@ def index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
