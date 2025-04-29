@@ -38,7 +38,7 @@ def generate_audio_reply(self, text, filename=None):
         output_path = os.path.join(AUDIO_OUTPUT_FOLDER, filename)
 
         # Replace with your actual ElevenLabs voice ID
-        voice_id = "YOUR_VOICE_ID"
+        voice_id = "bZV4D3YurjhgEC2jJoal"
 
         response = requests.post(
             f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream",
