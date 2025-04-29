@@ -16,25 +16,32 @@ AUDIO_OUTPUT_FOLDER = "/srv/audio_replies"
 # Transcribe uploaded audio file
 @celery.task(bind=True)
 def transcribe_audio(self, filepath):
+    print(f"🛠️ [transcribe_audio] Started task with file: {filepath}")
     try:
         model = whisper.load_model("base")
         result = model.transcribe(filepath)
-        return result["text"]
+        transcription = result["text"]
+        print(f"✅ [transcribe_audio] Finished: {transcription}")
+        return transcription
     except Exception as e:
+        print(f"❌ [transcribe_audio] Error: {str(e)}")
         return f"Error during transcription: {str(e)}"
 
 # Generate audio reply from text
 @celery.task(bind=True)
 def generate_audio_reply(self, text, filename=None):
+    print(f"🛠️ [generate_audio_reply] Generating audio for: '{text}'")
     try:
         if not filename:
             filename = f"reply_{uuid.uuid4().hex}.mp3"
 
         output_path = os.path.join(AUDIO_OUTPUT_FOLDER, filename)
 
-        # Replace this with your actual TTS logic or ElevenLabs API call
-        audio_data = requests.post(
-            "https://api.elevenlabs.io/v1/text-to-speech/YOUR_VOICE_ID/stream",
+        # Replace with your actual ElevenLabs voice ID
+        voice_id = "YOUR_VOICE_ID"
+
+        response = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream",
             headers={
                 "xi-api-key": os.environ["ELEVENLABS_API_KEY"],
                 "Content-Type": "application/json"
@@ -49,10 +56,12 @@ def generate_audio_reply(self, text, filename=None):
         )
 
         with open(output_path, "wb") as f:
-            f.write(audio_data.content)
+            f.write(response.content)
 
         os.chmod(output_path, 0o640)
 
+        print(f"✅ [generate_audio_reply] Audio saved to {output_path}")
         return {"success": True, "filename": filename}
     except Exception as e:
+        print(f"❌ [generate_audio_reply] Error: {str(e)}")
         return {"success": False, "error": str(e)}
