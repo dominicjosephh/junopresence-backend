@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 from werkzeug.utils import secure_filename
-from tasks import transcribe_audio, generate_audio_reply
+from tasks import transcribe_audio, generate_audio_reply, celery
 from celery.result import AsyncResult
 
 # Initialize Flask app
@@ -35,7 +35,7 @@ def process_audio():
 # Check transcription → Trigger audio generation → Return audio_url
 @app.route('/api/get_transcription/<task_id>', methods=['GET'])
 def get_transcription(task_id):
-    task_result = AsyncResult(task_id, app=transcribe_audio.app)
+    task_result = AsyncResult(task_id, app=celery)
 
     if task_result.state == 'PENDING':
         return jsonify({"status": "Processing..."})
